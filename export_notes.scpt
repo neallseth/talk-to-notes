@@ -77,8 +77,12 @@ on run {exportFolder}
             -- Log the number of exported notes
             do shell script "echo Successfully exported " & exportedNotes & " out of " & totalNotes & " notes. >&2"
             
+            -- Return the number of exported notes
+            return exportedNotes
+            
         on error mainErrMsg number mainErrNum
             do shell script "echo Main error: " & quoted form of mainErrMsg & " (" & mainErrNum & ") >&2"
+            return -1 -- Return -1 in case of error
         end try
     end tell
 end run

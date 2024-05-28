@@ -10,13 +10,13 @@ const exportDir = path.join(import.meta.dir, "notes");
 function runExportScript() {
   const result = spawnSync(["osascript", appleScriptPath, exportDir]);
 
-  const stdout = result.stdout.toString();
+  const stdout = result.stdout.toString().trim();
   const stderr = result.stderr.toString();
 
   if (stderr) {
     console.error(`Error: ${stderr}`);
   } else {
-    console.log(`Success! ${stdout}`);
+    console.log(`Success! Exported ${stdout} notes.`);
   }
 }
 
