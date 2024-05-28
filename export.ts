@@ -4,7 +4,7 @@ import path from "path";
 // Path to your AppleScript file
 const appleScriptPath = path.join(import.meta.dir, "export_notes.scpt");
 // Path to the export directory
-const exportDir = path.join(import.meta.dir, "notes");
+const exportDir = path.join(import.meta.dir, "notes/raw");
 
 // Function to execute the AppleScript with a parameter
 function runExportScript() {

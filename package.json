@@ -1,14 +1,21 @@
 {
   "name": "talk-to-notes",
   "module": "index.ts",
-  "type": "module",
-  "scripts": {
-    "export": "bun run export.ts"
-  },
   "devDependencies": {
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "export": "bun run export.ts",
+    "convert": "bun run convert-to-md.ts"
+  },
+  "type": "module",
+  "dependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/turndown": "^5.0.4",
+    "fs-extra": "^11.2.0",
+    "turndown": "^7.2.0"
   }
 }
