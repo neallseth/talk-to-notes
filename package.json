@@ -1,0 +1,14 @@
+{
+  "name": "talk-to-notes",
+  "module": "index.ts",
+  "type": "module",
+  "scripts": {
+    "export": "bun run export.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
