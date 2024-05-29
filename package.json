@@ -9,13 +9,17 @@
   },
   "scripts": {
     "export": "bun run export.ts",
-    "convert": "bun run convert-to-md.ts"
+    "convert": "bun run convert.ts",
+    "embed": "bun run embed.ts"
   },
   "type": "module",
   "dependencies": {
+    "@tensorflow-models/universal-sentence-encoder": "^1.3.3",
+    "@tensorflow/tfjs-node": "^4.19.0",
     "@types/fs-extra": "^11.0.4",
     "@types/turndown": "^5.0.4",
     "fs-extra": "^11.2.0",
+    "marked": "^12.0.2",
     "turndown": "^7.2.0"
   }
 }
