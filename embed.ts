@@ -7,9 +7,13 @@ import { marked } from "marked";
 const NOTES_DIR = "./notes/markdown";
 const EMBEDDINGS_FILE = "./embeddings.json";
 const CHUNK_SIZE = 512;
+const OVERLAP_SIZE = 100;
 
-// Type for embeddings object
-type Embeddings = { [key: string]: number[][] };
+// Type for embedding entry
+type EmbeddingEntry = {
+  chunk: string;
+  embedding: number[];
+};
 
 // Function to read all markdown files recursively
 const readMarkdownFiles = (dir: string): string[] => {
@@ -29,9 +33,9 @@ const readMarkdownFiles = (dir: string): string[] => {
 };
 
 // Function to chunk the text
-const chunkText = (text: string, size: number): string[] => {
+const chunkText = (text: string, size: number, overlap: number): string[] => {
   const chunks: string[] = [];
-  for (let i = 0; i < text.length; i += size) {
+  for (let i = 0; i < text.length; i += size - overlap) {
     chunks.push(text.slice(i, i + size));
   }
   return chunks;
@@ -46,38 +50,42 @@ const generateEmbeddings = async (
   return embeddings.arraySync()[0];
 };
 
-// Function to parse markdown and extract plain text
-const parseMarkdown = (markdown: string): string => {
-  const html = marked.parse(markdown);
-  const plainText = html.replace(/<\/?[^>]+(>|$)/g, ""); // Remove HTML tags
+const parseMarkdown = (markdown: string) => {
+  // Strip images from markdown
+  const cleanedMarkdown = markdown.replace(/!\[.*?\]\(.*?\)/g, "");
+
+  // Parse to HTML
+  const html = marked.parse(cleanedMarkdown) as string;
+
+  // Remove HTML tags to get plain text
+  const plainText = html.replace(/<\/?[^>]+(>|$)/g, "");
+
   return plainText;
 };
-
 // Main function to process notes
 const processNotes = async (): Promise<void> => {
-  console.log(tf.getBackend());
+  console.log("start");
+  tf.getBackend();
 
   const model: use.UniversalSentenceEncoder = await use.load();
   const filePaths: string[] = readMarkdownFiles(NOTES_DIR);
-  const embeddings: Embeddings = {};
+  console.log("retrieved file paths");
+  const embeddings: EmbeddingEntry[] = [];
 
   for (const filePath of filePaths) {
     try {
       const noteContent: string = fs.readFileSync(filePath, "utf-8");
       const parsedText: string = parseMarkdown(noteContent);
-      const chunks: string[] = chunkText(parsedText, CHUNK_SIZE);
-      const noteEmbeddings: number[][] = [];
+      const chunks: string[] = chunkText(parsedText, CHUNK_SIZE, OVERLAP_SIZE);
       for (const chunk of chunks) {
         const embedding: number[] = await generateEmbeddings(chunk, model);
-        noteEmbeddings.push(embedding);
+        embeddings.push({ chunk, embedding });
       }
-      const noteKey = path.basename(filePath, path.extname(filePath)); // Using the file name as the key
-      embeddings[noteKey] = noteEmbeddings;
+      console.log("Embedded file: ", filePath.split("/").at(-1));
     } catch (err) {
       console.error(`Error reading file: ${filePath}`, err);
     }
   }
-
   fs.writeFileSync(EMBEDDINGS_FILE, JSON.stringify(embeddings, null, 2));
 };
 
