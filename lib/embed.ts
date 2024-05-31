@@ -1,17 +1,11 @@
-import * as tf from "@tensorflow/tfjs-node"; // Ensure the Node.js backend is registered
-import * as use from "@tensorflow-models/universal-sentence-encoder";
 import fs from "fs";
 import path from "path";
-import {
-  chunkText,
-  embedText,
-  generateEmbeddings,
-  parseMarkdown,
-} from "../utils/text-processing";
+import { chunkText, parseMarkdown } from "../utils/text-processing";
+import { embedText, getUseModel } from "../utils/tensorflow";
 import { HierarchicalNSW } from "hnswlib-node";
 
 const NOTES_DIR = "./notes/markdown";
-const EMBEDDINGS_FILE = "../embeddings.json";
+const EMBEDDINGS_FILE = "embeddings.json";
 const CHUNK_SIZE = 512;
 const OVERLAP_SIZE = 100;
 
@@ -41,8 +35,7 @@ const readMarkdownFiles = (dir: string): string[] => {
 // Function to generate embeddings using Universal Sentence Encoder
 
 const getEmbeddings = async () => {
-  tf.getBackend();
-  const model: use.UniversalSentenceEncoder = await use.load();
+  const model = await getUseModel();
   const filePaths: string[] = readMarkdownFiles(NOTES_DIR);
   const embeddings: EmbeddingEntry[] = [];
 
@@ -64,6 +57,7 @@ const getEmbeddings = async () => {
       console.error(`Error reading file: ${filePath}`, err);
     }
   }
+
   return embeddings;
 };
 
@@ -72,9 +66,8 @@ async function embedAndStore() {
     console.log("Beginning embedding...");
     const timeStart = performance.now();
     const embeddings = await getEmbeddings();
-    fs.writeFileSync(EMBEDDINGS_FILE, JSON.stringify(embeddings, null, 2));
-
-    const index = new HierarchicalNSW("cosine", embeddings[0].embedding.length);
+    await Bun.write(EMBEDDINGS_FILE, JSON.stringify(embeddings));
+    const index = new HierarchicalNSW("cosine", 512);
     index.initIndex(embeddings.length);
 
     embeddings.forEach((entry, i) => {
@@ -84,7 +77,7 @@ async function embedAndStore() {
     index.writeIndexSync("index.dat");
     const timeEnd = performance.now();
     console.log(
-      "Time taken to embed:",
+      "Time taken to embed notes:",
       Math.ceil((timeEnd - timeStart) / 1000),
       "seconds"
     );
@@ -92,5 +85,4 @@ async function embedAndStore() {
     console.error("Error embedding notes:", err);
   }
 }
-// Run the main function
 await embedAndStore();

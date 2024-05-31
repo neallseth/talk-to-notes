@@ -26,11 +26,3 @@ export const chunkText = (
   }
   return chunks;
 };
-
-export const embedText = async (
-  text: string,
-  model: use.UniversalSentenceEncoder
-): Promise<number[]> => {
-  const embeddings = await model.embed([text]);
-  return embeddings.arraySync()[0];
-};
