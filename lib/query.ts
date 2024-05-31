@@ -1,33 +1,17 @@
 import { HierarchicalNSW } from "hnswlib-node";
+import * as tf from "@tensorflow/tfjs-node"; // Ensure the Node.js backend is registered
+import * as use from "@tensorflow-models/universal-sentence-encoder";
+import { embedText } from "../utils/text-processing";
 
-const numDimensions = 8; // the length of data point vector that will be indexed.
-const maxElements = 10; // the maximum number of data points.
+tf.getBackend();
+const model: use.UniversalSentenceEncoder = await use.load();
 
-// declaring and intializing index.
-const index = new HierarchicalNSW("l2", numDimensions);
-index.initIndex(maxElements);
+const index = new HierarchicalNSW("cosine", 512);
+index.readIndexSync("index.dat");
 
-// inserting data points to index.
-for (let i = 0; i < maxElements; i++) {
-  const point = new Array(numDimensions);
-  for (let j = 0; j < numDimensions; j++) point[j] = Math.random();
-  index.addPoint(point, i);
-}
-
-// saving index.
-index.writeIndexSync("index.dat");
-
-// loading index.
-const newIdx = new HierarchicalNSW("l2", 8);
-newIdx.readIndexSync("index.dat");
-
-// preparing query data points.
-const numDimension2 = 8;
-const query = new Array(numDimension2);
-for (let j = 0; j < numDimension2; j++) query[j] = Math.random();
-
-// searching k-nearest neighbor data points.
-const numNeighbors = 3;
-const result = index.searchKnn(query, numNeighbors);
+const query = "what did I do in July?";
+const embeddedQuery = await embedText(query, model);
+const result = index.searchKnn(embeddedQuery, 10);
+console.log(result);
 
 console.table(result);

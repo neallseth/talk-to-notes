@@ -2,7 +2,13 @@ import * as tf from "@tensorflow/tfjs-node"; // Ensure the Node.js backend is re
 import * as use from "@tensorflow-models/universal-sentence-encoder";
 import fs from "fs";
 import path from "path";
-import { marked } from "marked";
+import {
+  chunkText,
+  embedText,
+  generateEmbeddings,
+  parseMarkdown,
+} from "../utils/text-processing";
+import { HierarchicalNSW } from "hnswlib-node";
 
 const NOTES_DIR = "./notes/markdown";
 const EMBEDDINGS_FILE = "../embeddings.json";
@@ -32,69 +38,59 @@ const readMarkdownFiles = (dir: string): string[] => {
   return files;
 };
 
-// Function to chunk the text
-const chunkText = (text: string, size: number, overlap: number): string[] => {
-  const chunks: string[] = [];
-  for (let i = 0; i < text.length; i += size - overlap) {
-    chunks.push(text.slice(i, i + size));
-  }
-  return chunks;
-};
-
 // Function to generate embeddings using Universal Sentence Encoder
-const generateEmbeddings = async (
-  text: string,
-  model: use.UniversalSentenceEncoder
-): Promise<number[]> => {
-  const embeddings = await model.embed([text]);
-  return embeddings.arraySync()[0];
-};
 
-const parseMarkdown = (markdown: string) => {
-  // Strip images from markdown
-  const cleanedMarkdown = markdown.replace(/!\[.*?\]\(.*?\)/g, "");
-
-  // Parse to HTML
-  const html = marked.parse(cleanedMarkdown) as string;
-
-  // Remove HTML tags to get plain text
-  const plainText = html.replace(/<\/?[^>]+(>|$)/g, "");
-
-  return plainText;
-};
-// Main function to process notes
-const processNotes = async (): Promise<void> => {
-  console.log("start");
+const getEmbeddings = async () => {
   tf.getBackend();
-
   const model: use.UniversalSentenceEncoder = await use.load();
   const filePaths: string[] = readMarkdownFiles(NOTES_DIR);
-  console.log("retrieved file paths");
   const embeddings: EmbeddingEntry[] = [];
 
   for (const filePath of filePaths) {
     try {
+      const timeStart = performance.now();
       const noteContent: string = fs.readFileSync(filePath, "utf-8");
       const parsedText: string = parseMarkdown(noteContent);
       const chunks: string[] = chunkText(parsedText, CHUNK_SIZE, OVERLAP_SIZE);
       for (const chunk of chunks) {
-        const embedding: number[] = await generateEmbeddings(chunk, model);
-        console.log(embedding.length);
+        const embedding: number[] = await embedText(chunk, model);
         embeddings.push({ chunk, embedding });
       }
-      console.log("Embedded file: ", filePath.split("/").at(-1));
+      console.log(
+        `Embedded file in ${Math.ceil(performance.now() - timeStart)}ms: `,
+        filePath.split("/").at(-1)
+      );
     } catch (err) {
       console.error(`Error reading file: ${filePath}`, err);
     }
   }
-  fs.writeFileSync(EMBEDDINGS_FILE, JSON.stringify(embeddings, null, 2));
+  return embeddings;
 };
 
+async function embedAndStore() {
+  try {
+    console.log("Beginning embedding...");
+    const timeStart = performance.now();
+    const embeddings = await getEmbeddings();
+    fs.writeFileSync(EMBEDDINGS_FILE, JSON.stringify(embeddings, null, 2));
+
+    const index = new HierarchicalNSW("cosine", embeddings[0].embedding.length);
+    index.initIndex(embeddings.length);
+
+    embeddings.forEach((entry, i) => {
+      index.addPoint(entry.embedding, i);
+    });
+
+    index.writeIndexSync("index.dat");
+    const timeEnd = performance.now();
+    console.log(
+      "Time taken to embed:",
+      Math.ceil((timeEnd - timeStart) / 1000),
+      "seconds"
+    );
+  } catch (err) {
+    console.error("Error embedding notes:", err);
+  }
+}
 // Run the main function
-processNotes()
-  .then(() => {
-    console.log("Embeddings generated and stored successfully.");
-  })
-  .catch((err) => {
-    console.error("Error generating embeddings:", err);
-  });
+await embedAndStore();
