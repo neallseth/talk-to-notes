@@ -5,7 +5,7 @@ import path from "path";
 import { marked } from "marked";
 
 const NOTES_DIR = "./notes/markdown";
-const EMBEDDINGS_FILE = "./embeddings.json";
+const EMBEDDINGS_FILE = "../embeddings.json";
 const CHUNK_SIZE = 512;
 const OVERLAP_SIZE = 100;
 
@@ -79,6 +79,7 @@ const processNotes = async (): Promise<void> => {
       const chunks: string[] = chunkText(parsedText, CHUNK_SIZE, OVERLAP_SIZE);
       for (const chunk of chunks) {
         const embedding: number[] = await generateEmbeddings(chunk, model);
+        console.log(embedding.length);
         embeddings.push({ chunk, embedding });
       }
       console.log("Embedded file: ", filePath.split("/").at(-1));

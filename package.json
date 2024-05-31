@@ -8,9 +8,9 @@
     "typescript": "^5.0.0"
   },
   "scripts": {
-    "export": "bun run export.ts",
-    "convert": "bun run convert.ts",
-    "embed": "bun run embed.ts"
+    "export": "bun run ./lib/export.ts",
+    "convert": "bun run ./lib/convert.ts",
+    "embed": "bun run ./lib/embed.ts"
   },
   "type": "module",
   "dependencies": {
@@ -19,6 +19,7 @@
     "@types/fs-extra": "^11.0.4",
     "@types/turndown": "^5.0.4",
     "fs-extra": "^11.2.0",
+    "hnswlib-node": "^3.0.0",
     "marked": "^12.0.2",
     "turndown": "^7.2.0"
   }
