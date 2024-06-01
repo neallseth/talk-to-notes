@@ -3,11 +3,12 @@ import path from "path";
 import { chunkText, parseMarkdown } from "../utils/text-processing";
 import { embedText, getUseModel } from "../utils/tensorflow";
 import { HierarchicalNSW } from "hnswlib-node";
+import { file } from "bun";
 
 const NOTES_DIR = "./notes/markdown";
 const EMBEDDINGS_FILE = "embeddings.json";
-const CHUNK_SIZE = 512;
-const OVERLAP_SIZE = 100;
+const CHUNK_SIZE = 150;
+const OVERLAP_SIZE = 15;
 
 // Type for embedding entry
 type EmbeddingEntry = {
@@ -32,7 +33,15 @@ const readMarkdownFiles = (dir: string): string[] => {
   return files;
 };
 
-// Function to generate embeddings using Universal Sentence Encoder
+const getContextualizedChunk = (chunk: string, filePath: string) => {
+  const splitPath = filePath.replace(".md", "").split("/");
+  const folder = splitPath.at(-2);
+  const fileName = splitPath.at(-1);
+  const noteName = fileName?.split(" -- ")[0];
+  const noteDate = fileName?.split(" -- ")[1];
+
+  return `From my note titled '${noteName}' created ${noteDate}, in the '${folder}' folder: ${chunk}`;
+};
 
 const getEmbeddings = async () => {
   const model = await getUseModel();
@@ -46,8 +55,9 @@ const getEmbeddings = async () => {
       const parsedText: string = parseMarkdown(noteContent);
       const chunks: string[] = chunkText(parsedText, CHUNK_SIZE, OVERLAP_SIZE);
       for (const chunk of chunks) {
-        const embedding: number[] = await embedText(chunk, model);
-        embeddings.push({ chunk, embedding });
+        const contextualizedChunk = getContextualizedChunk(chunk, filePath);
+        const embedding: number[] = await embedText(contextualizedChunk, model);
+        embeddings.push({ chunk: contextualizedChunk, embedding });
       }
       console.log(
         `Embedded file in ${Math.ceil(performance.now() - timeStart)}ms: `,

@@ -1,6 +1,5 @@
 import { marked } from "marked";
-import * as use from "@tensorflow-models/universal-sentence-encoder";
-import * as tf from "@tensorflow/tfjs-node"; // Ensure the Node.js backend is registered
+import { decode } from "html-entities";
 
 export const parseMarkdown = (markdown: string) => {
   // Strip images from markdown
@@ -9,20 +8,22 @@ export const parseMarkdown = (markdown: string) => {
   // Parse to HTML
   const html = marked.parse(cleanedMarkdown) as string;
 
-  // Remove HTML tags to get plain text
-  const plainText = html.replace(/<\/?[^>]+(>|$)/g, "");
-
-  return plainText;
+  // Remove HTML tags and decode HTML entities to get plain text
+  return decode(html.replace(/<\/?[^>]+(>|$)/g, ""));
 };
 
 export const chunkText = (
-  text: string,
+  document: string,
   size: number,
   overlap: number
 ): string[] => {
-  const chunks: string[] = [];
-  for (let i = 0; i < text.length; i += size - overlap) {
-    chunks.push(text.slice(i, i + size));
+  const words = document.split(/\s+/);
+  const chunks = [];
+
+  for (let i = 0; i < words.length; i += size - overlap) {
+    const chunk = words.slice(i, i + size).join(" ");
+    chunks.push(chunk);
   }
+
   return chunks;
 };

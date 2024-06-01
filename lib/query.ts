@@ -4,7 +4,7 @@ import { getUseModel, embedText } from "../utils/tensorflow";
 const index = new HierarchicalNSW("cosine", 512);
 index.readIndexSync("index.dat");
 
-const query = "what are my thoughts on dc";
+const query = "what are my thoughts on twitter?";
 const embeddedQuery = await embedText(query, await getUseModel());
 const result = index.searchKnn(embeddedQuery, 10);
 console.log(result);
