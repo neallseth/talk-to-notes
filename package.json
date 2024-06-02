@@ -11,7 +11,8 @@
     "export": "bun run ./lib/export.ts",
     "convert": "bun run ./lib/convert.ts",
     "embed": "bun run ./lib/embed.ts",
-    "query": "bun run ./lib/query.ts"
+    "query": "bun run ./lib/query.ts",
+    "chat": "bun run ./lib/chat.ts"
   },
   "type": "module",
   "dependencies": {
