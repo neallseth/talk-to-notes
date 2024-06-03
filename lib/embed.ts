@@ -4,27 +4,22 @@ import { chunkText, parseMarkdown } from "../utils/text-processing";
 import { embedText, getUseModel } from "../utils/tensorflow";
 import { HierarchicalNSW } from "hnswlib-node";
 import { file } from "bun";
+import { type EmbeddingEntry } from "../types";
 
 const NOTES_DIR = "./notes/markdown";
 const EMBEDDINGS_FILE = "embeddings.json";
 const CHUNK_SIZE = 150;
 const OVERLAP_SIZE = 15;
 
-// Type for embedding entry
-type EmbeddingEntry = {
-  chunk: string;
-  embedding: number[];
-};
-
 // Function to read all markdown files recursively
-const readMarkdownFiles = (dir: string): string[] => {
+const getFilePaths = (dir: string): string[] => {
   let files: string[] = [];
   const items = fs.readdirSync(dir);
 
   items.forEach((item) => {
     const fullPath = path.join(dir, item);
     if (fs.statSync(fullPath).isDirectory()) {
-      files = files.concat(readMarkdownFiles(fullPath));
+      files = files.concat(getFilePaths(fullPath));
     } else if (fullPath.endsWith(".md")) {
       files.push(fullPath);
     }
@@ -33,22 +28,30 @@ const readMarkdownFiles = (dir: string): string[] => {
   return files;
 };
 
-const getContextualizedChunk = (chunk: string, filePath: string) => {
+function getMetadataFromFilepath(filePath: string) {
   const splitPath = filePath.replace(".md", "").split("/");
-  const folder = splitPath.at(-2);
+  const folder = splitPath.at(-2) || "";
   const fileName = splitPath.at(-1);
-  const noteName = fileName?.split(" -- ")[0];
-  const noteDate = fileName?.split(" -- ")[1];
+  const noteName = fileName?.split(" -- ")[0] || "";
+  const noteDate = fileName?.split(" -- ")[1] || "";
+
+  return { folder, noteName, noteDate };
+}
+
+const getContextualizedChunk = (chunk: string, filePath: string) => {
+  const { folder, noteName, noteDate } = getMetadataFromFilepath(filePath);
 
   return `From my note titled '${noteName}' created ${noteDate}, in the '${folder}' folder: ${chunk}`;
 };
 
 const getEmbeddings = async () => {
   const model = await getUseModel();
-  const filePaths: string[] = readMarkdownFiles(NOTES_DIR);
+  const filePaths: string[] = getFilePaths(NOTES_DIR);
   const embeddings: EmbeddingEntry[] = [];
+  let id = 0;
 
   for (const filePath of filePaths) {
+    const { folder, noteName, noteDate } = getMetadataFromFilepath(filePath);
     try {
       const timeStart = performance.now();
       const noteContent: string = fs.readFileSync(filePath, "utf-8");
@@ -57,7 +60,14 @@ const getEmbeddings = async () => {
       for (const chunk of chunks) {
         const contextualizedChunk = getContextualizedChunk(chunk, filePath);
         const embedding: number[] = await embedText(contextualizedChunk, model);
-        embeddings.push({ chunk: contextualizedChunk, embedding });
+        embeddings.push({
+          id: id++,
+          chunk: contextualizedChunk,
+          embedding,
+          folder,
+          noteName,
+          noteDate,
+        });
       }
       console.log(
         `Embedded file in ${Math.ceil(performance.now() - timeStart)}ms: `,
@@ -81,7 +91,7 @@ async function embedAndStore() {
     index.initIndex(embeddings.length);
 
     embeddings.forEach((entry, i) => {
-      index.addPoint(entry.embedding, i);
+      index.addPoint(entry.embedding, entry.id);
     });
 
     index.writeIndexSync("index.dat");

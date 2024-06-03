@@ -1,7 +1,11 @@
 import inquirer from "inquirer";
 import chalk from "chalk";
+import type { CoreMessage } from "ai";
+import { handleQuery } from "./query";
 
 async function chat() {
+  const messages: CoreMessage[] = [];
+
   console.log(
     chalk.green(
       "You're chatting with Apple Notes! Simply type a query, or say 'exit' or 'help'"
@@ -32,17 +36,17 @@ async function chat() {
       continue;
     }
 
-    const botResponse = await getBotResponse(input);
+    const botResponse = await handleQuery(input);
     console.log(chalk.magenta(`Apple Notes: ${botResponse}`));
   }
 }
 
-async function getBotResponse(input: string): Promise<string> {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(`You said: ${input}`);
-    }, 300);
-  });
-}
+// async function getBotResponse(input: string): Promise<string> {
+//   return new Promise((resolve) => {
+//     setTimeout(() => {
+//       resolve(`You said: ${input}`);
+//     }, 300);
+//   });
+// }
 
 chat();
