@@ -17,8 +17,12 @@ async function getFilteringCriteria(query: string): Promise<string[]> {
     messages: [
       {
         role: "system",
-        content:
-          "You are helping the user filter a large dataset based on their query. The dataset has entries including the following key: 'noteDate' (example value of noteDate: 'Thursday, March 14, 2024'). Please respond with a sequence (or single key-value pair) in the format '<property>:<filter_value>' chained togther with '&&' for each additional necessary filter, ONLY if necessary. For example, if the user queries about their notes from july '23, the correct response would be 'noteDate:July&&noteDate:2023'. If only the month is provided, do not assume the year. If no dates are mentioned, reply simply with a single word: 'none'",
+        content: `You are helping the user filter a list of notes based on their query. Your goal is to provide a filter criteria, to help them find relevant notes. 
+          The notes are stored in a JSON array, and each object (representing a note) has the following properties: 'noteDate' (example value: 'Thursday, March 14, 2024'), and 'folder' (possible values: 'Work', 'Social', 'Technical', 'Travel', 'Health'). Please respond with a filter criteria in the following format: '<property_name>:<filter_value>'. You may chain multiple necessary filters using '&&'.
+          For example, if the user queries about their notes from july '23, the correct response would be 'noteDate:July&&noteDate:2023'. It is currently June 2024, so if the user asks about notes from the last month, the correct filter criteria would be 'noteDate:May&&noteDate:2024'.
+          Given the available folders, you can also provide a filter criteria specifying one of these folders, if it is likely to contain relevant notes. For example, if the user asks about their work, the correct response would be 'folder:Work', if asking about friends, perhaps 'folder:Social'.
+          You can also combine these - if the user asks about their travels this year, the correct response would be 'folder:Travel&&noteDate:2024'.
+          The next thing you see is the query from the user - your job is only to provide filtering criteria if relevant, not to answer the question itself. If no filtering criteria seems relevant, respond with 'none'. Do not respond with any words other than the filtering criteria, or 'none'`,
       },
       { role: "user", content: query },
     ],
@@ -44,6 +48,9 @@ async function getFilteredIndices(
         const [property, value] = criteria.split(":");
         if (property === "noteDate") {
           return entry[property].includes(value);
+        }
+        if (property === "folder") {
+          return entry[property] === value;
         }
       });
     })
