@@ -1,7 +1,7 @@
 import inquirer from "inquirer";
 import chalk from "chalk";
 import type { CoreMessage } from "ai";
-import { handleQuery } from "./query";
+import { getPrompt, generateResponse } from "./query";
 
 async function chat() {
   const messages: CoreMessage[] = [];
@@ -36,8 +36,19 @@ async function chat() {
       continue;
     }
 
-    const botResponse = await handleQuery(input);
-    console.log(chalk.magenta(`Apple Notes: ${botResponse}`));
+    const getPromptStart = performance.now();
+    const prompt = await getPrompt(input);
+    console.log("getPromptTime:", performance.now() - getPromptStart);
+
+    console.log(chalk.magenta(`Apple Notes: `));
+
+    const generateResponseStart = performance.now();
+    await generateResponse(prompt);
+    console.log(
+      "generateResponseTime:",
+      performance.now() - generateResponseStart
+    );
+    console.log(`\n`);
   }
 }
 

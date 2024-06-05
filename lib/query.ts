@@ -1,8 +1,138 @@
 import { HierarchicalNSW } from "hnswlib-node";
 import { getUseModel, embedText } from "../utils/tensorflow";
+
+/**
+ * TextEncoderStream polyfill based on Node.js' implementation https://github.com/nodejs/node/blob/3f3226c8e363a5f06c1e6a37abd59b6b8c1923f1/lib/internal/webstreams/encoding.js#L38-L119 (MIT License)
+ */
+export class TextEncoderStream {
+  #pendingHighSurrogate: string | null = null;
+
+  #handle = new TextEncoder();
+
+  #transform = new TransformStream<string, Uint8Array>({
+    transform: (chunk, controller) => {
+      // https://encoding.spec.whatwg.org/#encode-and-enqueue-a-chunk
+      chunk = String(chunk);
+
+      let finalChunk = "";
+      for (const item of chunk) {
+        const codeUnit = item.charCodeAt(0);
+        if (this.#pendingHighSurrogate !== null) {
+          const highSurrogate = this.#pendingHighSurrogate;
+
+          this.#pendingHighSurrogate = null;
+          if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+            finalChunk += highSurrogate + item;
+            continue;
+          }
+
+          finalChunk += "\uFFFD";
+        }
+
+        if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+          this.#pendingHighSurrogate = item;
+          continue;
+        }
+
+        if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+          finalChunk += "\uFFFD";
+          continue;
+        }
+
+        finalChunk += item;
+      }
+
+      if (finalChunk) {
+        controller.enqueue(this.#handle.encode(finalChunk));
+      }
+    },
+
+    flush: (controller) => {
+      // https://encoding.spec.whatwg.org/#encode-and-flush
+      if (this.#pendingHighSurrogate !== null) {
+        controller.enqueue(new Uint8Array([0xef, 0xbf, 0xbd]));
+      }
+    },
+  });
+
+  get encoding() {
+    return this.#handle.encoding;
+  }
+
+  get readable() {
+    return this.#transform.readable;
+  }
+
+  get writable() {
+    return this.#transform.writable;
+  }
+
+  get [Symbol.toStringTag]() {
+    return "TextEncoderStream";
+  }
+}
+
+/**
+ * TextDecoderStream polyfill based on Node.js' implementation https://github.com/nodejs/node/blob/3f3226c8e363a5f06c1e6a37abd59b6b8c1923f1/lib/internal/webstreams/encoding.js#L121-L200 (MIT License)
+ */
+export class TextDecoderStream {
+  #handle: TextDecoder;
+
+  #transform = new TransformStream({
+    transform: (chunk, controller) => {
+      const value = this.#handle.decode(chunk, { stream: true });
+
+      if (value) {
+        controller.enqueue(value);
+      }
+    },
+    flush: (controller) => {
+      const value = this.#handle.decode();
+      if (value) {
+        controller.enqueue(value);
+      }
+
+      controller.terminate();
+    },
+  });
+
+  constructor(encoding = "utf-8", options: TextDecoderOptions = {}) {
+    this.#handle = new TextDecoder(encoding, options);
+  }
+
+  get encoding() {
+    return this.#handle.encoding;
+  }
+
+  get fatal() {
+    return this.#handle.fatal;
+  }
+
+  get ignoreBOM() {
+    return this.#handle.ignoreBOM;
+  }
+
+  get readable() {
+    return this.#transform.readable;
+  }
+
+  get writable() {
+    return this.#transform.writable;
+  }
+
+  get [Symbol.toStringTag]() {
+    return "TextDecoderStream";
+  }
+}
+
+// Add those polyfills to globalThis before you import `@google/generative-ai`
+globalThis.TextEncoderStream ||= TextEncoderStream;
+globalThis.TextDecoderStream ||= TextDecoderStream;
+
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, streamText } from "ai";
 import { type EmbeddingEntry } from "../types";
+import type { UniversalSentenceEncoder } from "@tensorflow-models/universal-sentence-encoder";
 
 const notes = await Bun.file("embeddings.json").json();
 
@@ -87,58 +217,56 @@ function genKnnFilter(targetIndices: number[] | null) {
   }
 }
 
-export async function handleQuery(query: string) {
+export async function getPrompt(query: string) {
   // Load vector index
+  const readIndexStart = performance.now();
   const index = new HierarchicalNSW("cosine", 512);
   await index.readIndex("index.dat");
+  console.log("readIndexTime:", performance.now() - readIndexStart);
 
   // Get filtering criteria from LLM
+  const filteringCriteriaStart = performance.now();
   const filteringCriteria = await getFilteringCriteria(query);
   console.log({ filteringCriteria });
+  console.log(
+    "filteringCriteriaTime:",
+    performance.now() - filteringCriteriaStart
+  );
 
   // Get reformatted, searchable query
+  const vectorSearchQueryStart = performance.now();
   const vectorSearchQuery = await getSearchableQuery(query);
   console.log({ vectorSearchQuery });
+  console.log(
+    "vectorSearchQueryTime:",
+    performance.now() - vectorSearchQueryStart
+  );
 
   // Embed query
+  const embeddedQueryStart = performance.now();
   const embeddedQuery = await embedText(vectorSearchQuery, await getUseModel());
+  console.log("embeddedQueryTime:", performance.now() - embeddedQueryStart);
 
   // Filter relevant indices
+  const relevantIndicesStart = performance.now();
   const relevantIndices = await getFilteredIndices(notes, filteringCriteria);
+  console.log("relevantIndicesTime:", performance.now() - relevantIndicesStart);
 
   // Retrieve nearest neighbors and stored notes
+  const neighborIndicesStart = performance.now();
   const neighborIndices = index.searchKnn(
     embeddedQuery,
     10,
     genKnnFilter(relevantIndices)
   ).neighbors;
   console.log({ neighborIndices });
+  console.log("neighborIndicesTime:", performance.now() - neighborIndicesStart);
 
   // Generate prompt and run inference
-  const prompt = await genPrompt(query, neighborIndices, notes);
-  console.log({ prompt });
-
-  const groq = createOpenAI({
-    baseURL: "https://api.groq.com/openai/v1",
-    apiKey: process.env.GROQ_API_KEY,
-  });
-
-  const { text } = await generateText({
-    model: groq("llama3-70b-8192"),
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are helping the user with their queries based on context from their notes. You will receive their query followed by relevant context. This will be a chat-style conversation.",
-      },
-      { role: "user", content: prompt },
-    ],
-  });
-
-  return text;
+  return assemblePrompt(query, neighborIndices, notes);
 }
 
-async function genPrompt(
+function assemblePrompt(
   query: string,
   neighbors: number[],
   notes: EmbeddingEntry[]
@@ -152,4 +280,27 @@ Context: `;
   }
 
   return prompt;
+}
+
+export async function generateResponse(prompt: string) {
+  const groq = createOpenAI({
+    baseURL: "https://api.groq.com/openai/v1",
+    apiKey: process.env.GROQ_API_KEY,
+  });
+
+  const result = await streamText({
+    model: groq("llama3-70b-8192"),
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are helping the user with their queries based on context from their notes. You will receive their query followed by relevant context. This will be a chat-style conversation.",
+      },
+      { role: "user", content: prompt },
+    ],
+  });
+
+  for await (const delta of result.textStream) {
+    process.stdout.write(delta);
+  }
 }
