@@ -6,7 +6,29 @@ import { type EmbeddingEntry } from "../types";
 
 const notes = await Bun.file("embeddings.json").json();
 
-async function getFilteringCriteria(query: string): Promise<string[]> {
+async function getSearchableQuery(query: string) {
+  const groq = createOpenAI({
+    baseURL: "https://api.groq.com/openai/v1",
+    apiKey: process.env.GROQ_API_KEY,
+  });
+
+  const { text } = await generateText({
+    model: groq("llama3-8b-8192"),
+    messages: [
+      {
+        role: "system",
+        content: `You are helping the user reformat their query to make it more suitable for searching through their notes. 
+        The notes are stored as embeddings, and similarity search will be used to find relevant notes based on the embedded version of the query you provide.
+        Therefore, it is important that you provide a query that is likely to have maximally similar embedding to the notes the user is looking for. 
+        What follows is the query from the user in its original format. Please provide only the reformatted query, without any additional information, context, or words.`,
+      },
+      { role: "user", content: query },
+    ],
+  });
+  return text;
+}
+
+async function getFilteringCriteria(query: string) {
   const groq = createOpenAI({
     baseURL: "https://api.groq.com/openai/v1",
     apiKey: process.env.GROQ_API_KEY,
@@ -18,7 +40,7 @@ async function getFilteringCriteria(query: string): Promise<string[]> {
       {
         role: "system",
         content: `You are helping the user filter a list of notes based on their query. Your goal is to provide a filter criteria, to help them find relevant notes. 
-          The notes are stored in a JSON array, and each object (representing a note) has the following properties: 'noteDate' (example value: 'Thursday, March 14, 2024'), and 'folder' (possible values: 'Work', 'Social', 'Technical', 'Travel', 'Health'). Please respond with a filter criteria in the following format: '<property_name>:<filter_value>'. You may chain multiple necessary filters using '&&'.
+          The notes are stored in a JSON array, and each object (representing a note) has the following properties: 'noteDate' (example value: 'Thursday, March 14, 2024'), and 'folder' (possible values: 'Work', 'Social', 'Technical', 'Travel', 'Health', 'Writing'). Please respond with a filter criteria in the following format: '<property_name>:<filter_value>'. You may chain multiple necessary filters using '&&'.
           For example, if the user queries about their notes from july '23, the correct response would be 'noteDate:July&&noteDate:2023'. It is currently June 2024, so if the user asks about notes from the last month, the correct filter criteria would be 'noteDate:May&&noteDate:2024'.
           Given the available folders, you can also provide a filter criteria specifying one of these folders, if it is likely to contain relevant notes. For example, if the user asks about their work, the correct response would be 'folder:Work', if asking about friends, perhaps 'folder:Social'.
           You can also combine these - if the user asks about their travels this year, the correct response would be 'folder:Travel&&noteDate:2024'.
@@ -27,8 +49,6 @@ async function getFilteringCriteria(query: string): Promise<string[]> {
       { role: "user", content: query },
     ],
   });
-
-  console.log({ text });
 
   // Assuming the response text contains a list of relevant keywords or phrases separated by commas
   return text.split("&&").map((condition) => condition.trim());
@@ -72,11 +92,16 @@ export async function handleQuery(query: string) {
   const index = new HierarchicalNSW("cosine", 512);
   await index.readIndex("index.dat");
 
-  // Embed query
-  const embeddedQuery = await embedText(query, await getUseModel());
-
   // Get filtering criteria from LLM
   const filteringCriteria = await getFilteringCriteria(query);
+  console.log({ filteringCriteria });
+
+  // Get reformatted, searchable query
+  const vectorSearchQuery = await getSearchableQuery(query);
+  console.log({ vectorSearchQuery });
+
+  // Embed query
+  const embeddedQuery = await embedText(vectorSearchQuery, await getUseModel());
 
   // Filter relevant indices
   const relevantIndices = await getFilteredIndices(notes, filteringCriteria);
@@ -87,9 +112,11 @@ export async function handleQuery(query: string) {
     10,
     genKnnFilter(relevantIndices)
   ).neighbors;
+  console.log({ neighborIndices });
 
   // Generate prompt and run inference
   const prompt = await genPrompt(query, neighborIndices, notes);
+  console.log({ prompt });
 
   const groq = createOpenAI({
     baseURL: "https://api.groq.com/openai/v1",
@@ -97,7 +124,7 @@ export async function handleQuery(query: string) {
   });
 
   const { text } = await generateText({
-    model: groq("llama3-8b-8192"),
+    model: groq("llama3-70b-8192"),
     messages: [
       {
         role: "system",

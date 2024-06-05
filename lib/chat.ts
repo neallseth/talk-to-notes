@@ -41,12 +41,4 @@ async function chat() {
   }
 }
 
-// async function getBotResponse(input: string): Promise<string> {
-//   return new Promise((resolve) => {
-//     setTimeout(() => {
-//       resolve(`You said: ${input}`);
-//     }, 300);
-//   });
-// }
-
 chat();
