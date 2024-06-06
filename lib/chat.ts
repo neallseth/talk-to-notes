@@ -196,10 +196,14 @@ export async function getPrompt(
 }
 
 async function chat() {
+  const notesLoadStart = performance.now();
   const notes = await Bun.file("embeddings.json").json();
+  console.log("notesLoadTime:", performance.now() - notesLoadStart);
 
   const messages: CoreMessage[] = [];
+  const modelLoadStart = performance.now();
   const useModel = await getUseModel();
+  console.log("modelLoadTime:", performance.now() - modelLoadStart);
 
   console.log(
     chalk.green(
