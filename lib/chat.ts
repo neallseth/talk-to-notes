@@ -206,7 +206,7 @@ async function chat() {
   console.log("modelLoadTime:", performance.now() - modelLoadStart);
 
   console.log(
-    chalk.green(
+    chalk.magenta(
       "You're chatting with Apple Notes! Simply type a query, or say 'exit' or 'help'"
     )
   );
@@ -216,7 +216,7 @@ async function chat() {
       {
         type: "input",
         name: "userInput",
-        message: chalk.blue("You:"),
+        message: chalk.green("You:"),
         prefix: "",
       },
     ]);
@@ -224,14 +224,14 @@ async function chat() {
     const input = rawInput.trim().toLowerCase();
 
     if (input === "exit" || input === "quit") {
-      console.log(chalk.yellow("Goodbye!"));
+      console.log(chalk.magenta("Goodbye!"));
       break;
     }
 
     if (input.toLowerCase() === "help") {
-      console.log(chalk.cyan("Available commands:"));
-      console.log(chalk.cyan("help - Show this help message"));
-      console.log(chalk.cyan("exit - Exit the chat"));
+      console.log(chalk.magenta("Available commands:"));
+      console.log(chalk.magenta("help - Show this help message"));
+      console.log(chalk.magenta("exit - Exit the chat"));
       continue;
     }
 
@@ -239,7 +239,7 @@ async function chat() {
     const prompt = await getPrompt(input, useModel, notes);
     console.log("getPromptTime:", performance.now() - getPromptStart);
 
-    console.log(chalk.magenta(`Apple Notes: `));
+    process.stdout.write(chalk.blue(`Apple Notes: `));
 
     const generateResponseStart = performance.now();
     await generateResponse(prompt);
