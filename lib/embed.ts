@@ -4,7 +4,7 @@ import { chunkText, parseMarkdown } from "../utils/text-processing";
 import { embedText, getUseModel } from "../utils/tensorflow";
 import { HierarchicalNSW } from "hnswlib-node";
 import { file } from "bun";
-import { type EmbeddingEntry } from "../types";
+import { type EmbeddingEntry } from "@/types";
 
 const NOTES_DIR = "./notes/markdown";
 const EMBEDDINGS_FILE = "embeddings.json";

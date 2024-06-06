@@ -3,14 +3,14 @@ import "./misc/TextStreamPolyfill"; // Can remove once this closes: https://gith
 import inquirer from "inquirer";
 import chalk from "chalk";
 import type { CoreMessage } from "ai";
-import { getUseModel } from "../utils/tensorflow";
+import { getUseModel } from "@/utils/tensorflow";
 import { HierarchicalNSW } from "hnswlib-node";
-import { embedText } from "../utils/tensorflow";
+import { embedText } from "@/utils/tensorflow";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, streamText } from "ai";
-import { type EmbeddingEntry } from "../types";
+import { type EmbeddingEntry } from "@/types";
 import type { UniversalSentenceEncoder } from "@tensorflow-models/universal-sentence-encoder";
-import { getFormattedDate } from "../utils/misc";
+import { getFormattedDate } from "@/utils/misc";
 
 const notes = await Bun.file("embeddings.json").json();
 

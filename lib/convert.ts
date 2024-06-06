@@ -7,8 +7,8 @@ import { ensureDir, outputFile } from "fs-extra";
 const turndownService = new TurndownService();
 
 // Define the source and destination directories
-const srcDir = "../notes/raw";
-const destDir = "../notes/markdown";
+const srcDir = "@/notes/raw";
+const destDir = "@/notes/markdown";
 
 // Function to sanitize the content by removing unusual line terminators
 function sanitizeContent(content: string): string {
