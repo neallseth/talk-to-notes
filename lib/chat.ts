@@ -12,8 +12,6 @@ import { type EmbeddingEntry } from "@/types";
 import type { UniversalSentenceEncoder } from "@tensorflow-models/universal-sentence-encoder";
 import { getFormattedDate } from "@/utils/misc";
 
-const notes = await Bun.file("embeddings.json").json();
-
 async function getSearchableQuery(query: string) {
   const groq = createOpenAI({
     baseURL: "https://api.groq.com/openai/v1",
@@ -146,7 +144,8 @@ export async function generateResponse(prompt: string) {
 
 export async function getPrompt(
   query: string,
-  useModel: UniversalSentenceEncoder
+  useModel: UniversalSentenceEncoder,
+  notes: EmbeddingEntry[]
 ) {
   // Load vector index
   const readIndexStart = performance.now();
@@ -197,6 +196,8 @@ export async function getPrompt(
 }
 
 async function chat() {
+  const notes = await Bun.file("embeddings.json").json();
+
   const messages: CoreMessage[] = [];
   const useModel = await getUseModel();
 
@@ -231,7 +232,7 @@ async function chat() {
     }
 
     const getPromptStart = performance.now();
-    const prompt = await getPrompt(input, useModel);
+    const prompt = await getPrompt(input, useModel, notes);
     console.log("getPromptTime:", performance.now() - getPromptStart);
 
     console.log(chalk.magenta(`Apple Notes: `));
