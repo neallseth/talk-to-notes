@@ -23,41 +23,46 @@ import {
 export async function getPrompt(
   query: string,
   useModel: UniversalSentenceEncoder,
+  index: HierarchicalNSW,
   notes: EmbeddingEntry[]
 ) {
-  // Load vector index
-  const readIndexStart = performance.now();
-  const index = new HierarchicalNSW("cosine", 512);
-  await index.readIndex("index.dat");
-  console.log("readIndexTime:", performance.now() - readIndexStart);
+  // // Get filtering criteria from LLM
+  // const filteringCriteriaStart = performance.now();
+  // const filteringCriteria = await getFilteringCriteria(query);
+  // console.log({ filteringCriteria });
+  // console.log(
+  //   "filteringCriteriaTime:",
+  //   performance.now() - filteringCriteriaStart
+  // );
 
-  // Get filtering criteria from LLM
-  const filteringCriteriaStart = performance.now();
-  const filteringCriteria = await getFilteringCriteria(query);
-  console.log({ filteringCriteria });
-  console.log(
-    "filteringCriteriaTime:",
-    performance.now() - filteringCriteriaStart
-  );
+  // // Get reformatted, searchable query
+  // const vectorSearchQueryStart = performance.now();
+  // const vectorSearchQuery = await getSearchableQuery(query);
+  // console.log({ vectorSearchQuery });
+  // console.log(
+  //   "vectorSearchQueryTime:",
+  //   performance.now() - vectorSearchQueryStart
+  // );
 
-  // Get reformatted, searchable query
-  const vectorSearchQueryStart = performance.now();
-  const vectorSearchQuery = await getSearchableQuery(query);
-  console.log({ vectorSearchQuery });
-  console.log(
-    "vectorSearchQueryTime:",
-    performance.now() - vectorSearchQueryStart
-  );
+  const [vectorSearchQuery, filteringCriteria] = await Promise.all([
+    getSearchableQuery(query),
+    getFilteringCriteria(query),
+  ]);
 
-  // Embed query
-  const embeddedQueryStart = performance.now();
-  const embeddedQuery = await embedText(vectorSearchQuery, useModel);
-  console.log("embeddedQueryTime:", performance.now() - embeddedQueryStart);
+  // // Embed query
+  // const embeddedQueryStart = performance.now();
+  // const embeddedQuery = await embedText(vectorSearchQuery, useModel);
+  // console.log("embeddedQueryTime:", performance.now() - embeddedQueryStart);
 
-  // Filter relevant indices
-  const relevantIndicesStart = performance.now();
-  const relevantIndices = await getFilteredIndices(notes, filteringCriteria);
-  console.log("relevantIndicesTime:", performance.now() - relevantIndicesStart);
+  // // Filter relevant indices
+  // const relevantIndicesStart = performance.now();
+  // const relevantIndices = await getFilteredIndices(notes, filteringCriteria);
+  // console.log("relevantIndicesTime:", performance.now() - relevantIndicesStart);
+
+  const [embeddedQuery, relevantIndices] = await Promise.all([
+    embedText(vectorSearchQuery, useModel),
+    getFilteredIndices(notes, filteringCriteria),
+  ]);
 
   // Retrieve nearest neighbors and stored notes
   const neighborIndicesStart = performance.now();
@@ -74,14 +79,23 @@ export async function getPrompt(
 }
 
 async function chat() {
+  // Load notes
   const notesLoadStart = performance.now();
-  const notes: EmbeddingEntry[] = await Bun.file("embeddings.json").json();
+  const notes = (await Bun.file("embeddings.json").json()) as EmbeddingEntry[];
   console.log("notesLoadTime:", performance.now() - notesLoadStart);
 
-  const messages: CoreMessage[] = [];
+  // Load vector index
+  const readIndexStart = performance.now();
+  const index = new HierarchicalNSW("cosine", 512);
+  await index.readIndex("index.dat");
+  console.log("loadIndexTime:", performance.now() - readIndexStart);
+
+  // Load Universal Sentence Encoder model
   const modelLoadStart = performance.now();
   const useModel = await getUseModel();
   console.log("modelLoadTime:", performance.now() - modelLoadStart);
+
+  const messages: CoreMessage[] = [];
 
   console.log(
     chalk.magenta(
@@ -114,7 +128,7 @@ async function chat() {
     }
 
     const getPromptStart = performance.now();
-    const prompt = await getPrompt(input, useModel, notes);
+    const prompt = await getPrompt(input, useModel, index, notes);
     console.log("getPromptTime:", performance.now() - getPromptStart);
 
     process.stdout.write(chalk.blue(`Apple Notes: `));
@@ -122,7 +136,7 @@ async function chat() {
     const generateResponseStart = performance.now();
     await generateResponse(prompt);
     console.log(
-      "generateResponseTime:",
+      "\ngenerateResponseTime:",
       performance.now() - generateResponseStart
     );
     console.log(`\n`);
