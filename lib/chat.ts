@@ -75,7 +75,7 @@ export async function getPrompt(
 
 async function chat() {
   const notesLoadStart = performance.now();
-  const notes = await Bun.file("embeddings.json").json();
+  const notes: EmbeddingEntry[] = await Bun.file("embeddings.json").json();
   console.log("notesLoadTime:", performance.now() - notesLoadStart);
 
   const messages: CoreMessage[] = [];
