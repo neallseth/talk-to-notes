@@ -52,8 +52,8 @@ on run {exportFolder}
                         set totalNotes to totalNotes + 1
                         set noteTitle to name of theNote as string
                         set sanitizedTitle to my sanitizeFileName(noteTitle)
-                        set noteCreationDate to creation date of theNote
-                        set formattedDate to my formatDate(noteCreationDate)
+                        set noteModificationDate to modification date of theNote
+                        set formattedDate to my formatDate(noteModificationDate)
                         set noteBody to body of theNote as text
 
                         -- Create a text file with the note's title and date
