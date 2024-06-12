@@ -118,11 +118,18 @@ Context: `;
   return prompt;
 }
 
-export async function generateResponse(prompt: string) {
+export async function generateResponse(
+  prompt: string,
+  chatMessages: CoreMessage[]
+) {
   const groq = createOpenAI({
     baseURL: "https://api.groq.com/openai/v1",
     apiKey: process.env.GROQ_API_KEY,
   });
+
+  chatMessages.forEach((m) =>
+    console.log(chalk.red(m.role + ": " + m.content))
+  );
 
   const result = await streamText({
     model: groq("llama3-70b-8192"),
@@ -131,11 +138,14 @@ export async function generateResponse(prompt: string) {
         role: "system",
         content: `You are helping the user with their queries based on context from their notes. You will receive their query followed by relevant context. This will be a chat-style conversation - respond helpfully without follow-up questions. The current date is: ${getFormattedDate()}`,
       },
-      { role: "user", content: prompt },
+      ...chatMessages,
     ],
   });
 
+  let queryResponse = "";
   for await (const delta of result.textStream) {
+    queryResponse += delta;
     process.stdout.write(delta);
   }
+  return queryResponse;
 }

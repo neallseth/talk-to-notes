@@ -20,44 +20,38 @@ import {
   getSearchableQuery,
 } from "./query";
 
+class ChatHistory {
+  private messages: CoreMessage[];
+  private maxMessages: number;
+
+  constructor(maxMessages = 3) {
+    this.messages = [];
+    this.maxMessages = maxMessages;
+  }
+
+  addMessage(role: "user" | "assistant", content: string) {
+    if (this.messages.length >= this.maxMessages) {
+      this.messages.shift();
+    }
+    const message: CoreMessage = { role, content };
+    this.messages.push(message);
+  }
+
+  getMessages(): CoreMessage[] {
+    return [...this.messages];
+  }
+}
+
 export async function getPrompt(
   query: string,
   useModel: UniversalSentenceEncoder,
   index: HierarchicalNSW,
   notes: EmbeddingEntry[]
 ) {
-  // // Get filtering criteria from LLM
-  // const filteringCriteriaStart = performance.now();
-  // const filteringCriteria = await getFilteringCriteria(query);
-  // console.log({ filteringCriteria });
-  // console.log(
-  //   "filteringCriteriaTime:",
-  //   performance.now() - filteringCriteriaStart
-  // );
-
-  // // Get reformatted, searchable query
-  // const vectorSearchQueryStart = performance.now();
-  // const vectorSearchQuery = await getSearchableQuery(query);
-  // console.log({ vectorSearchQuery });
-  // console.log(
-  //   "vectorSearchQueryTime:",
-  //   performance.now() - vectorSearchQueryStart
-  // );
-
   const [vectorSearchQuery, filteringCriteria] = await Promise.all([
     getSearchableQuery(query),
     getFilteringCriteria(query),
   ]);
-
-  // // Embed query
-  // const embeddedQueryStart = performance.now();
-  // const embeddedQuery = await embedText(vectorSearchQuery, useModel);
-  // console.log("embeddedQueryTime:", performance.now() - embeddedQueryStart);
-
-  // // Filter relevant indices
-  // const relevantIndicesStart = performance.now();
-  // const relevantIndices = await getFilteredIndices(notes, filteringCriteria);
-  // console.log("relevantIndicesTime:", performance.now() - relevantIndicesStart);
 
   const [embeddedQuery, relevantIndices] = await Promise.all([
     embedText(vectorSearchQuery, useModel),
@@ -79,6 +73,8 @@ export async function getPrompt(
 }
 
 async function chat() {
+  const chatMessages = new ChatHistory();
+
   // Load notes
   const notesLoadStart = performance.now();
   const notes = (await Bun.file("embeddings.json").json()) as EmbeddingEntry[];
@@ -94,8 +90,6 @@ async function chat() {
   const modelLoadStart = performance.now();
   const useModel = await getUseModel();
   console.log("modelLoadTime:", performance.now() - modelLoadStart);
-
-  const messages: CoreMessage[] = [];
 
   console.log(
     chalk.magenta(
@@ -129,16 +123,22 @@ async function chat() {
 
     const getPromptStart = performance.now();
     const prompt = await getPrompt(input, useModel, index, notes);
+    chatMessages.addMessage("user", prompt);
+
     console.log("getPromptTime:", performance.now() - getPromptStart);
 
     process.stdout.write(chalk.blue(`Apple Notes: `));
 
     const generateResponseStart = performance.now();
-    await generateResponse(prompt);
+    const queryResponse = await generateResponse(
+      prompt,
+      chatMessages.getMessages()
+    );
     console.log(
       "\ngenerateResponseTime:",
       performance.now() - generateResponseStart
     );
+    chatMessages.addMessage("assistant", queryResponse);
     console.log(`\n`);
   }
 }
