@@ -5,9 +5,11 @@ import { embedText, getUseModel } from "../utils/tensorflow";
 import { HierarchicalNSW } from "hnswlib-node";
 import { file } from "bun";
 import { type EmbeddingEntry } from "@/types";
+import { unlinkSync } from "node:fs";
 
-const NOTES_DIR = "./notes/markdown";
+const NOTES_DIR = "./notes/raw";
 const EMBEDDINGS_FILE = "embeddings.json";
+const EMBEDDINGS_INDEX = "index.dat";
 const CHUNK_SIZE = 150;
 const OVERLAP_SIZE = 15;
 
@@ -20,7 +22,7 @@ const getFilePaths = (dir: string): string[] => {
     const fullPath = path.join(dir, item);
     if (fs.statSync(fullPath).isDirectory()) {
       files = files.concat(getFilePaths(fullPath));
-    } else if (fullPath.endsWith(".md")) {
+    } else if (fullPath.endsWith(".txt")) {
       files.push(fullPath);
     }
   });
@@ -29,7 +31,7 @@ const getFilePaths = (dir: string): string[] => {
 };
 
 function getMetadataFromFilepath(filePath: string) {
-  const splitPath = filePath.replace(".md", "").split("/");
+  const splitPath = filePath.replace(".txt", "").split("/");
   const folder = splitPath.at(-2) || "";
   const fileName = splitPath.at(-1);
   const noteName = fileName?.split(" -- ")[0] || "";
@@ -41,7 +43,7 @@ function getMetadataFromFilepath(filePath: string) {
 const getContextualizedChunk = (chunk: string, filePath: string) => {
   const { folder, noteName, noteDate } = getMetadataFromFilepath(filePath);
 
-  return `From my note titled '${noteName}' created ${noteDate}, in the '${folder}' folder: ${chunk}`;
+  return `From note titled '${noteName}' last modified ${noteDate}, in the '${folder}' folder: ${chunk}`;
 };
 
 const getEmbeddings = async () => {
@@ -55,8 +57,7 @@ const getEmbeddings = async () => {
     try {
       const timeStart = performance.now();
       const noteContent: string = fs.readFileSync(filePath, "utf-8");
-      const parsedText: string = parseMarkdown(noteContent);
-      const chunks: string[] = chunkText(parsedText, CHUNK_SIZE, OVERLAP_SIZE);
+      const chunks: string[] = chunkText(noteContent, CHUNK_SIZE, OVERLAP_SIZE);
       for (const chunk of chunks) {
         const contextualizedChunk = getContextualizedChunk(chunk, filePath);
         const embedding: number[] = await embedText(contextualizedChunk, model);
@@ -83,6 +84,14 @@ const getEmbeddings = async () => {
 
 async function embedAndStore() {
   try {
+    // Cleanup previous embeddings
+    if (await Bun.file(EMBEDDINGS_FILE).exists()) {
+      unlinkSync(EMBEDDINGS_FILE);
+    }
+    if (await Bun.file(EMBEDDINGS_INDEX).exists()) {
+      unlinkSync(EMBEDDINGS_INDEX);
+    }
+
     console.log("Beginning embedding...");
     const timeStart = performance.now();
     const embeddings = await getEmbeddings();
@@ -94,7 +103,7 @@ async function embedAndStore() {
       index.addPoint(entry.embedding, entry.id);
     });
 
-    index.writeIndexSync("index.dat");
+    index.writeIndexSync(EMBEDDINGS_INDEX);
     const timeEnd = performance.now();
     console.log(
       "Time taken to embed notes:",

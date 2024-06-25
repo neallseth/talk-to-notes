@@ -54,7 +54,7 @@ on run {exportFolder}
                         set sanitizedTitle to my sanitizeFileName(noteTitle)
                         set noteModificationDate to modification date of theNote
                         set formattedDate to my formatDate(noteModificationDate)
-                        set noteBody to body of theNote as text
+                        set noteBody to plaintext of theNote
 
                         -- Create a text file with the note's title and date
                         set noteFilePath to folderPath & "/" & sanitizedTitle & " -- " & formattedDate & ".txt"

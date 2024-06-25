@@ -93,6 +93,8 @@ export async function getFilteredIndices(
   return filteredIndices;
 }
 
+async function getFilteredEvents() {}
+
 // Create a filter function for k-NN search
 export function genKnnFilter(targetIndices: Set<number> | null) {
   if (!targetIndices) {

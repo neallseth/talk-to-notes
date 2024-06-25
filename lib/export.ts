@@ -49,12 +49,11 @@ function exportCal() {
       console.error(`Error: ${stderr}`);
       reject(stderr);
     } else {
-      console.log(`Success! Exported ${stdout} events.`);
+      console.log(`Success! Exported ${stdout} calendar events.`);
       resolve(stdout);
     }
   });
 }
 
-// exportNotes();
-const res = await exportCal();
-console.log(res);
+exportNotes();
+// const res = await exportCal();

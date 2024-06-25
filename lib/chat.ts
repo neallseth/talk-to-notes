@@ -53,6 +53,8 @@ export async function getPrompt(
     getFilteringCriteria(query),
   ]);
 
+  console.log({ vectorSearchQuery, filteringCriteria });
+
   const [embeddedQuery, relevantIndices] = await Promise.all([
     embedText(vectorSearchQuery, useModel),
     getFilteredIndices(notes, filteringCriteria),
