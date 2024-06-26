@@ -6,3 +6,16 @@ export type EmbeddingEntry = {
   noteName: string;
   noteDate: string;
 };
+
+export type RawEvent = {
+  name: string;
+  date: string;
+  description: string;
+  location: string;
+};
+
+export type FormattedEvent = {
+  name: string;
+  date: string;
+  link: string;
+};

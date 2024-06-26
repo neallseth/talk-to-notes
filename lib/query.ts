@@ -6,7 +6,7 @@ import { HierarchicalNSW } from "hnswlib-node";
 import { embedText } from "@/utils/tensorflow";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, streamText } from "ai";
-import { type EmbeddingEntry } from "@/types";
+import { type EmbeddingEntry, type FormattedEvent } from "@/types";
 import type { UniversalSentenceEncoder } from "@tensorflow-models/universal-sentence-encoder";
 import { getFormattedDate } from "@/utils/misc";
 
@@ -93,7 +93,27 @@ export async function getFilteredIndices(
   return filteredIndices;
 }
 
-async function getFilteredEvents() {}
+export function getFilteredEvents(
+  events: FormattedEvent[],
+  filteringCriteria: string[]
+) {
+  if (filteringCriteria.length === 1 && filteringCriteria[0] === "none") {
+    return null;
+  }
+
+  return events.filter((event) => {
+    return filteringCriteria.every((criteria) => {
+      const [property, value] = criteria.split(":");
+
+      if (property === "noteDate") {
+        return event.date.includes(value);
+      }
+
+      console.warn(`Unsupported property: ${property}`);
+      return true;
+    });
+  });
+}
 
 // Create a filter function for k-NN search
 export function genKnnFilter(targetIndices: Set<number> | null) {
@@ -128,10 +148,6 @@ export async function generateResponse(
     baseURL: "https://api.groq.com/openai/v1",
     apiKey: process.env.GROQ_API_KEY,
   });
-
-  chatMessages.forEach((m) =>
-    console.log(chalk.red(m.role + ": " + m.content))
-  );
 
   const result = await streamText({
     model: groq("llama3-70b-8192"),

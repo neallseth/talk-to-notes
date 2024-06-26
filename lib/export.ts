@@ -1,6 +1,8 @@
 import { spawnSync } from "bun";
 import path from "path";
 import { existsSync, mkdirSync } from "fs";
+import type { RawEvent } from "@/types";
+import { extractUrl } from "@/utils/misc";
 
 // Path to your AppleScript file
 const notesExportScriptPath = path.join(import.meta.dir, "export_notes.scpt");
@@ -35,25 +37,41 @@ function exportNotes() {
   }
 }
 
-function exportCal() {
-  return new Promise((resolve, reject) => {
-    const result = spawnSync(["osascript", calExportScriptPath, calExportDir]);
+async function cleanCalExport() {
+  const rawEvents = (await Bun.file(
+    "./cal/raw/CalendarEvents.json"
+  ).json()) as RawEvent[];
 
-    const stdout = result.stdout.toString().trim();
-    const stderr = result.stderr.toString();
-
-    console.log(`stdout: ${stdout}`);
-    console.log(`stderr: ${stderr}`);
-
-    if (stderr) {
-      console.error(`Error: ${stderr}`);
-      reject(stderr);
-    } else {
-      console.log(`Success! Exported ${stdout} calendar events.`);
-      resolve(stdout);
-    }
+  const cleanedEvents = rawEvents.map((event) => {
+    return {
+      name: event.name.replace(" | Partiful", ""),
+      date: event.date,
+      // description: event.description,
+      link: extractUrl(event.description),
+    };
   });
+
+  await Bun.write("./cal/cleaned/events.json", JSON.stringify(cleanedEvents));
 }
 
-exportNotes();
-// const res = await exportCal();
+function exportCal() {
+  const result = spawnSync(["osascript", calExportScriptPath, calExportDir]);
+
+  const stdout = result.stdout.toString().trim();
+  const stderr = result.stderr.toString();
+
+  console.log(`stdout: ${stdout}`);
+  console.log(`stderr: ${stderr}`);
+
+  if (stderr) {
+    console.error(`Error: ${stderr}`);
+  } else {
+    cleanCalExport();
+    console.log(`Success! Exported ${stdout} calendar events.`);
+  }
+}
+
+// exportNotes();
+// exportCal();
+
+cleanCalExport();

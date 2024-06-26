@@ -8,13 +8,14 @@ import { HierarchicalNSW } from "hnswlib-node";
 import { embedText } from "@/utils/tensorflow";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, streamText } from "ai";
-import { type EmbeddingEntry } from "@/types";
+import { type EmbeddingEntry, type FormattedEvent } from "@/types";
 import type { UniversalSentenceEncoder } from "@tensorflow-models/universal-sentence-encoder";
 import { getFormattedDate } from "@/utils/misc";
 import {
   assemblePrompt,
   genKnnFilter,
   generateResponse,
+  getFilteredEvents,
   getFilteredIndices,
   getFilteringCriteria,
   getSearchableQuery,
@@ -46,7 +47,8 @@ export async function getPrompt(
   query: string,
   useModel: UniversalSentenceEncoder,
   index: HierarchicalNSW,
-  notes: EmbeddingEntry[]
+  notes: EmbeddingEntry[],
+  events: FormattedEvent[]
 ) {
   const [vectorSearchQuery, filteringCriteria] = await Promise.all([
     getSearchableQuery(query),
@@ -59,6 +61,9 @@ export async function getPrompt(
     embedText(vectorSearchQuery, useModel),
     getFilteredIndices(notes, filteringCriteria),
   ]);
+
+  const filteredEvents = getFilteredEvents(events, filteringCriteria);
+  console.log({ filteredEvents });
 
   // Retrieve nearest neighbors and stored notes
   const neighborIndicesStart = performance.now();
@@ -80,6 +85,9 @@ async function chat() {
   // Load notes
   const notesLoadStart = performance.now();
   const notes = (await Bun.file("embeddings.json").json()) as EmbeddingEntry[];
+  const events = (await Bun.file(
+    "cal/cleaned/events.json"
+  ).json()) as FormattedEvent[];
   console.log("notesLoadTime:", performance.now() - notesLoadStart);
 
   // Load vector index
@@ -124,7 +132,7 @@ async function chat() {
     }
 
     const getPromptStart = performance.now();
-    const prompt = await getPrompt(input, useModel, index, notes);
+    const prompt = await getPrompt(input, useModel, index, notes, events);
     chatMessages.addMessage("user", prompt);
 
     console.log("getPromptTime:", performance.now() - getPromptStart);
