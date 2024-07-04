@@ -68,7 +68,6 @@ export async function getPrompt(
   ]);
 
   const filteredEvents = getFilteredEvents(events, filteringCriteria, 5);
-  console.log({ filteredEvents });
 
   // Retrieve nearest neighbors and stored notes
   const neighborIndicesStart = performance.now();
@@ -77,7 +76,6 @@ export async function getPrompt(
     5,
     genKnnFilter(relevantIndices)
   ).neighbors;
-  console.log({ noteIndices });
   console.log("neighborIndicesTime:", performance.now() - neighborIndicesStart);
 
   // Generate prompt and run inference
@@ -138,7 +136,6 @@ async function chat() {
 
     const getPromptStart = performance.now();
     const prompt = await getPrompt(input, useModel, index, notes, events);
-    console.log({ prompt });
 
     if (prompt.length > 6000) {
       console.log(chalk.red("Query too long"));
