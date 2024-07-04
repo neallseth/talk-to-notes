@@ -55,6 +55,11 @@ export async function getPrompt(
     getFilteringCriteria(query),
   ]);
 
+  if (vectorSearchQuery === "follow-up") {
+    console.log(chalk.magenta("Follow-up query"));
+    return query;
+  }
+
   console.log({ vectorSearchQuery, filteringCriteria });
 
   const [embeddedQuery, relevantIndices] = await Promise.all([
@@ -62,21 +67,21 @@ export async function getPrompt(
     getFilteredIndices(notes, filteringCriteria),
   ]);
 
-  const filteredEvents = getFilteredEvents(events, filteringCriteria);
+  const filteredEvents = getFilteredEvents(events, filteringCriteria, 5);
   console.log({ filteredEvents });
 
   // Retrieve nearest neighbors and stored notes
   const neighborIndicesStart = performance.now();
-  const neighborIndices = index.searchKnn(
+  const noteIndices = index.searchKnn(
     embeddedQuery,
-    10,
+    5,
     genKnnFilter(relevantIndices)
   ).neighbors;
-  console.log({ neighborIndices });
+  console.log({ noteIndices });
   console.log("neighborIndicesTime:", performance.now() - neighborIndicesStart);
 
   // Generate prompt and run inference
-  return assemblePrompt(query, neighborIndices, notes);
+  return assemblePrompt(query, noteIndices, notes, filteredEvents);
 }
 
 async function chat() {
@@ -133,6 +138,13 @@ async function chat() {
 
     const getPromptStart = performance.now();
     const prompt = await getPrompt(input, useModel, index, notes, events);
+    console.log({ prompt });
+
+    if (prompt.length > 6000) {
+      console.log(chalk.red("Query too long"));
+      return;
+    }
+
     chatMessages.addMessage("user", prompt);
 
     console.log("getPromptTime:", performance.now() - getPromptStart);

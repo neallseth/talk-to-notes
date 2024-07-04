@@ -24,7 +24,8 @@ export async function getSearchableQuery(query: string) {
         content: `You are helping the user reformat their query to make it more suitable for searching through their notes. 
         The notes are stored as embeddings, and similarity search will be used to find relevant notes based on the embedded version of the query you provide.
         Therefore, it is important that you provide a query that is likely to have maximally similar embedding to the notes the user is looking for. 
-        What follows is the query from the user in its original format. Please provide only the reformatted query, without any additional information, context, or words.`,
+        What follows is the query from the user in its original format. Please provide only the reformatted query, without any additional information, context, or words. 
+        Alternatively, if the query appears to be a follow-up of a previous question, (e.g., "why do you think that is?") simply respond with 'follow-up', since there would be no need to find relevant notes.`,
       },
       { role: "user", content: query },
     ],
@@ -45,7 +46,7 @@ export async function getFilteringCriteria(query: string) {
         role: "system",
         content: `You are helping the user filter a list of notes based on their query. Your goal is to provide a filter criteria, to help them find relevant notes. 
           The notes are stored in a JSON array, and each object (representing a note) has the following properties: 'noteDate' (example value: 'Thursday, March 14, 2024'), and 'folder' (possible values: 'Work', 'Social', 'Technical', 'Travel', 'Health', 'Writing'). Please respond with a filter criteria in the following format: '<property_name>:<filter_value>'. You may chain multiple necessary filters using '&&'.
-          For example, if the user queries about their notes from july '23, the correct response would be 'noteDate:July&&noteDate:2023'. If it were June 2024, and the user asked about notes from the last month, the correct filter criteria would be 'noteDate:May&&noteDate:2024'.
+          For example, if the user queries about their notes from july '23, the correct response would be 'noteDate:July&&noteDate:2023'. If it were June 2024, and the user asked about notes from the last month, the correct filter criteria would be 'noteDate:May&&noteDate:2024'. If they query about a specific date, add the number after the month, like 'noteDate:July 23&&noteDate:2023'.
           Given the available folders, you can also provide a filter criteria specifying one of these folders, if it is likely to contain relevant notes. For example, if the user asks about their work, the correct response would be 'folder:Work', if asking about friends, perhaps 'folder:Social'.
           You can also combine these - if the user asks about their travels this year, the correct response would be 'folder:Travel&&noteDate:2024'.
           The current date is: ${getFormattedDate()}
@@ -73,7 +74,6 @@ export async function getFilteredIndices(
   entries.forEach((entry) => {
     const isRelevant = filteringCriteria.every((criteria) => {
       const [property, value] = criteria.split(":");
-
       if (property === "noteDate") {
         return entry[property].includes(value);
       }
@@ -95,24 +95,24 @@ export async function getFilteredIndices(
 
 export function getFilteredEvents(
   events: FormattedEvent[],
-  filteringCriteria: string[]
+  filteringCriteria: string[],
+  maxEvents: number
 ) {
   if (filteringCriteria.length === 1 && filteringCriteria[0] === "none") {
-    return null;
+    return [];
   }
 
-  return events.filter((event) => {
-    return filteringCriteria.every((criteria) => {
-      const [property, value] = criteria.split(":");
-
-      if (property === "noteDate") {
-        return event.date.includes(value);
-      }
-
-      console.warn(`Unsupported property: ${property}`);
-      return true;
-    });
-  });
+  return events
+    .filter((event) => {
+      return filteringCriteria.every((criteria) => {
+        const [property, value] = criteria.split(":");
+        if (property === "noteDate") {
+          return event.date.includes(value);
+        }
+        return true;
+      });
+    })
+    .slice(0, maxEvents);
 }
 
 // Create a filter function for k-NN search
@@ -126,15 +126,27 @@ export function genKnnFilter(targetIndices: Set<number> | null) {
 
 export function assemblePrompt(
   query: string,
-  neighbors: number[],
-  notes: EmbeddingEntry[]
+  noteIndices: number[],
+  notes: EmbeddingEntry[],
+  events: FormattedEvent[]
 ) {
   let prompt = `
 Query: ${query}
-Context: `;
+`;
 
-  for (let idx of neighbors) {
-    prompt += `\n- ${notes[idx].chunk}`;
+  if (noteIndices.length > 0) {
+    prompt += `\nPotentially relevant notes from user's notes app: `;
+    for (let idx of noteIndices) {
+      prompt += `\n- ${notes[idx].chunk}`;
+    }
+  }
+
+  if (events.length > 0) {
+    prompt += `\n\nPotentially relevant events from user's calendar: `;
+
+    for (let event of events) {
+      prompt += `\n- "${event.name}" on ${event.date}, link: ${event.link}`;
+    }
   }
 
   return prompt;
@@ -154,7 +166,7 @@ export async function generateResponse(
     messages: [
       {
         role: "system",
-        content: `You are helping the user with their queries based on context from their notes. You will receive their query followed by relevant context. This will be a chat-style conversation - respond helpfully without follow-up questions. The current date is: ${getFormattedDate()}`,
+        content: `You are helping the user with their queries based on context from their notes and calendar entries. You will receive their query followed by relevant context. This will be a chat-style conversation - respond helpfully without follow-up questions. The current date is: ${getFormattedDate()}`,
       },
       ...chatMessages,
     ],
